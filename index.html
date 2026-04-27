@@ -2,103 +2,63 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HMHOS IoT - Fridge Monitor</title>
+    <title>HMHOS IoT Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card-fridge { border: none; border-radius: 15px; transition: transform 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .card-fridge:hover { transform: translateY(-5px); }
-        .temp-value { font-size: 2.5rem; font-weight: bold; color: #0d6efd; }
-        .status-online { color: #198754; font-weight: bold; }
-        .status-offline { color: #dc3545; font-weight: bold; }
-        .refresh-btn { border-radius: 50px; }
+        body { background-color: #f0f2f5; font-family: 'Tahoma'; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .temp-now { font-size: 2.8rem; font-weight: bold; color: #0d6efd; }
+        .limit-box { background: #e9ecef; border-radius: 8px; padding: 5px; font-size: 0.85rem; color: #666; }
+        .online { color: #198754; } .offline { color: #dc3545; }
     </style>
 </head>
 <body>
-
 <div class="container py-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="fw-bold"><i class="fas fa-microchip text-primary"></i> ระบบติดตามอุณหภูมิตู้เย็น (Cloud)</h2>
-        <button onclick="fetchData()" class="btn btn-outline-primary refresh-btn">
-            <i class="fas fa-sync-alt"></i> รีเฟรชข้อมูล
-        </button>
-    </div>
-
-    <div id="loading" class="text-center my-5">
-        <div class="spinner-border text-primary" role="status"></div>
-        <p class="mt-2">กำลังดึงข้อมูลล่าสุดจากระบบ Cloud...</p>
-    </div>
-
-    <div id="fridge-container" class="row g-4">
-        </div>
+    <h2 class="mb-4 text-center fw-bold">📊 ระบบมอนิเตอร์ตู้เย็น Cloud</h2>
+    <div id="fridge-container" class="row g-4"></div>
 </div>
 
 <script>
-    // 🌟 1. วาง URL เว็บแอป (ที่ลงท้ายด้วย /exec) ของพี่ที่นี่ครับ
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzRd7-7-giui5aTDd7Ihl2aOpAHTLqTUonmr1e3Dir3Ac24rk1uuo7phLdjtcT7j5sdPQ/exec";
+    const WEB_APP_URL = "ใส่_WEB_APP_URL_ของพี่/exec";
 
     async function fetchData() {
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('fridge-container').innerHTML = '';
-
         try {
-            const response = await fetch(WEB_APP_URL);
-            const data = await response.json();
+            const res = await fetch(WEB_APP_URL);
+            const data = await res.json();
+            const container = document.getElementById('fridge-container');
+            container.innerHTML = '';
             
-            displayData(data);
-        } catch (error) {
-            console.error("Error fetching data:", error);
-            document.getElementById('fridge-container').innerHTML = `
-                <div class="alert alert-danger">ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบการตั้งค่าการ Deploy (Anyone)</div>
-            `;
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
-    }
-
-    function displayData(items) {
-        const container = document.getElementById('fridge-container');
-        items.forEach(item => {
-            const statusText = item.isOnline ? 
-                '<span class="status-online"><i class="fas fa-circle"></i> Online</span>' : 
-                '<span class="status-offline"><i class="fas fa-circle"></i> Offline</span>';
-
-            const card = `
+            data.forEach(item => {
+                const card = `
                 <div class="col-md-6 col-lg-4">
-                    <div class="card card-fridge h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between mb-3">
-                                <h5 class="card-title fw-bold">${item.name}</h5>
-                                ${statusText}
+                    <div class="card p-3">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="fw-bold">${item.name}</h5>
+                            <span class="${item.isOnline ? 'online' : 'offline'}">● ${item.isOnline ? 'Online' : 'Offline'}</span>
+                        </div>
+                        <div class="row text-center mt-3">
+                            <div class="col-6 border-end">
+                                <small>ช่องธรรมดา</small>
+                                <div class="temp-now">${item.tN}°</div>
+                                <div class="limit-box">เกณฑ์: ${item.nMin} ถึง ${item.nMax}</div>
                             </div>
-                            <div class="row text-center mb-3">
-                                <div class="col-6 border-end">
-                                    <small class="text-muted">ช่องธรรมดา</small>
-                                    <div class="temp-value">${item.tN}°C</div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted">ช่องแช่แข็ง</small>
-                                    <div class="temp-value text-info">${item.fN}°C</div>
-                                </div>
-                            </div>
-                            <div class="text-center pt-2 border-top">
-                                <small class="text-muted">อัปเดตล่าสุด: ${new Date(item.lastUpdate).toLocaleString('th-TH')}</small>
+                            <div class="col-6">
+                                <small>ช่องแช่แข็ง</small>
+                                <div class="temp-now text-info">${item.fN}°</div>
+                                <div class="limit-box">เกณฑ์: ${item.fMin} ถึง ${item.fMax}</div>
                             </div>
                         </div>
+                        <div class="text-center mt-3 text-muted" style="font-size: 0.75rem;">
+                            อัปเดตล่าสุด: ${new Date(item.lastUpdate).toLocaleString('th-TH')}
+                        </div>
                     </div>
-                </div>
-            `;
-            container.innerHTML += card;
-        });
+                </div>`;
+                container.innerHTML += card;
+            });
+        } catch (e) { console.log(e); }
     }
-
-    // เรียกข้อมูลทันทีเมื่อเปิดหน้าเว็บ
     fetchData();
-    // รีเฟรชทุกๆ 1 นาที
-    setInterval(fetchData, 60000);
+    setInterval(fetchData, 30000); // รีเฟรชทุก 30 วินาที
 </script>
-
 </body>
 </html>

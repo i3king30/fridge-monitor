@@ -2,74 +2,128 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloud Fridge Monitor</title>
+    <title>Hospital IoT Monitoring System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Prompt', sans-serif; background-color: #f4f7f6; padding-top: 30px; }
-        .device-card { border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: white; margin-bottom: 20px; padding: 20px; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .bg-online { background-color: #10b981; } 
-        .bg-offline { background-color: #ef4444; }
+        :root { --hosp-green: #00695c; --hosp-bg: #f4f7f6; }
+        body { font-family: 'Sarabun', sans-serif; background-color: var(--hosp-bg); }
+        .navbar { background: var(--hosp-green) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card-fridge { border: none; border-radius: 12px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .temp-val { font-size: 2.8rem; font-weight: 600; line-height: 1; }
+        .status-online { color: #2e7d32; font-size: 0.85rem; font-weight: bold; }
+        .status-offline { color: #c62828; font-size: 0.85rem; font-weight: bold; }
+        .limit-info { font-size: 0.75rem; color: #666; background: #eee; padding: 2px 8px; border-radius: 4px; }
+        .btn-report { background: var(--hosp-green); color: white; border: none; border-radius: 20px; padding: 5px 20px; font-size: 0.8rem; }
+        .btn-report:hover { background: #004d40; color: white; }
     </style>
 </head>
 <body>
 
-<div class="container pb-5">
-    <h3 class="fw-bold mb-4 text-center" style="color: #0f766e;">☁️ Cloud Fridge Monitor</h3>
-    <div class="row" id="device-container">
-        <div class="text-center mt-5 text-muted">กำลังโหลดข้อมูลอุปกรณ์...</div>
+<nav class="navbar navbar-dark mb-4">
+    <div class="container">
+        <span class="navbar-brand fw-bold"><i class="fas fa-hospital-symbol"></i> ระบบติดตามอุณหภูมิตู้เย็นอัจฉริยะ</span>
+        <a href="#reportSection" class="btn btn-light btn-sm fw-bold">ดูรายงานย้อนหลัง</a>
+    </div>
+</nav>
+
+<div class="container">
+    <div id="fridgeContainer" class="row g-4 mb-5"></div>
+
+    <hr>
+
+    <div id="reportSection" class="card p-4 shadow-sm mb-5">
+        <h4 class="fw-bold mb-4 text-teal" style="color:var(--hosp-green)">📑 รายงานอุณหภูมิย้อนหลัง (Logs)</h4>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>วัน-เวลา</th>
+                        <th>รหัสตู้</th>
+                        <th>ช่องธรรมดา</th>
+                        <th>ช่องแช่แข็ง</th>
+                        <th>สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody id="reportTable"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <script>
-    // 🌟 ใส่ Web App URL ของ Google Apps Script ที่นี่
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbw60DmzLHfsVjtrp2KlKhDhNHmOhRVgQT1F7eQX6rBXrsfKZBlCS0x059Q9cHKOxhzn6Q/exec";
-    
-    function loadData() {
-        fetch(GAS_URL)
-            .then(res => res.json())
-            .then(data => {
-                const container = document.getElementById('device-container');
-                container.innerHTML = ''; 
-                
-                data.forEach(dev => {
-                    const isOnline = dev.isOnline;
-                    const statusText = isOnline ? 'Online' : 'Offline';
-                    const badgeClass = isOnline ? 'bg-success' : 'bg-danger';
-                    const lastTime = dev.lastUpdate ? new Date(dev.lastUpdate).toLocaleString('th-TH') : 'รอข้อมูล';
-                    
-                    const card = `
-                    <div class="col-md-6 col-lg-4">
-                        <div class="device-card">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <h5 class="fw-bold mb-0">${dev.name}</h5>
-                                    <small class="text-muted">${dev.dev}</small>
-                                </div>
-                                <span class="badge ${badgeClass} rounded-pill px-3 py-2">
-                                    <span class="status-dot bg-white"></span> ${statusText}
-                                </span>
+    const API = "https://script.google.com/macros/s/AKfycbw60DmzLHfsVjtrp2KlKhDhNHmOhRVgQT1F7eQX6rBXrsfKZBlCS0x059Q9cHKOxhzn6Q/exec";
+
+    async function loadData() {
+        try {
+            // โหลด Dashboard
+            const res = await fetch(`${API}?action=dashboard`);
+            const data = await res.json();
+            renderDashboard(data);
+
+            // โหลด Report
+            const resRep = await fetch(`${API}?action=report`);
+            const logs = await resRep.json();
+            renderReport(logs);
+        } catch (e) { console.error(e); }
+    }
+
+    function renderDashboard(data) {
+        const container = document.getElementById('fridgeContainer');
+        container.innerHTML = data.map(item => `
+            <div class="col-lg-6">
+                <div class="card card-fridge p-4 h-100 bg-white">
+                    <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
+                        <div>
+                            <h5 class="fw-bold m-0 text-dark">${item.name}</h5>
+                            <small class="text-muted">ID: ${item.dev}</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="${item.isOnline ? 'status-online' : 'status-offline'}">
+                                ● ${item.isOnline ? 'ONLINE' : 'OFFLINE'}
                             </div>
-                            <div class="p-3 rounded mb-3" style="background: #f8f9fa;">
-                                <div class="mb-2" style="font-size: 1.2rem;">🌡️ ช่องธรรมดา: <b class="text-info">${dev.tN} °C</b></div>
-                                <div style="font-size: 1.2rem;">❄️ ช่องแช่แข็ง: <b class="text-primary">${dev.fN} °C</b></div>
-                            </div>
-                            <div class="text-muted" style="font-size: 0.85rem;">
-                                🕒 อัปเดตล่าสุด: ${lastTime}
+                            <small class="text-muted" style="font-size:0.7rem">
+                                ${new Date(item.lastUpdate).toLocaleString('th-TH')}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="row text-center mb-3">
+                        <div class="col-6 border-end">
+                            <small class="text-muted d-block mb-1">NORMAL (เกณฑ์ ${item.nMin}-${item.nMax})</small>
+                            <div class="temp-val ${item.curTN > item.nMax || item.curTN < item.nMin ? 'text-danger' : 'text-success'}">
+                                ${item.curTN}°
                             </div>
                         </div>
-                    </div>`;
-                    container.innerHTML += card;
-                });
-            })
-            .catch(err => console.log("Error loading data:", err));
+                        <div class="col-6">
+                            <small class="text-muted d-block mb-1">FREEZER (เกณฑ์ ${item.fMin}-${item.fMax})</small>
+                            <div class="temp-val text-info">${item.curTF}°</div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                         <div style="width: 150px; height: 40px;"><canvas id="chart-${item.dev}"></canvas></div>
+                         <button class="btn-report" onclick="location.href='#reportSection'">รายละเอียด</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderReport(logs) {
+        const table = document.getElementById('reportTable');
+        table.innerHTML = logs.map(row => `
+            <tr>
+                <td><small>${new Date(row[0]).toLocaleString('th-TH')}</small></td>
+                <td><span class="badge bg-light text-dark border">${row[1]}</span></td>
+                <td class="fw-bold text-success">${row[2]}°C</td>
+                <td class="fw-bold text-info">${row[3]}°C</td>
+                <td><span class="badge bg-success-subtle text-success">ปกติ</span></td>
+            </tr>
+        `).join('');
     }
 
     loadData();
-    setInterval(loadData, 30000); // ดึงข้อมูลใหม่ทุก 30 วินาที
+    setInterval(loadData, 60000); // อัปเดตทุก 1 นาที
 </script>
-
 </body>
 </html>

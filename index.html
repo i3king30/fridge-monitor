@@ -13,15 +13,15 @@
         body { font-family: 'Sarabun', sans-serif; background-color: var(--hosp-bg); }
         .navbar { background: var(--hosp-green) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .card-fridge { border: none; border-radius: 12px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .temp-val { font-size: 2.8rem; font-weight: 600; line-height: 1; margin: 10px 0; }
+        .temp-val { font-size: 2.8rem; font-weight: 600; line-height: 1; margin: 5px 0; }
         
-        /* สเตตัสและสีเตือน */
         .status-online { color: #2e7d32; font-size: 0.85rem; font-weight: bold; background: #e8f5e9; padding: 4px 10px; border-radius: 20px;}
         .status-offline { color: #c62828; font-size: 0.85rem; font-weight: bold; background: #ffebee; padding: 4px 10px; border-radius: 20px;}
         .text-danger-blink { color: #d32f2f !important; font-weight: bold; animation: blinker 1.5s linear infinite; }
+        .limit-info { font-size: 0.8rem; color: #555; background: #e0e0e0; padding: 2px 8px; border-radius: 6px; }
         
-        .limit-info { font-size: 0.8rem; color: #555; background: #e0e0e0; padding: 3px 8px; border-radius: 6px; }
         @keyframes blinker { 50% { opacity: 0.4; } }
+        canvas { max-height: 120px; width: 100%; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -31,7 +31,7 @@
         <span class="navbar-brand fw-bold"><i class="fas fa-hospital-user"></i> ระบบติดตามอุณหภูมิตู้เย็นอัจฉริยะ</span>
         <div>
             <span id="last-sync-time" class="text-white small me-3"></span>
-            <a href="#reportSection" class="btn btn-light btn-sm fw-bold">ดูรายงานย้อนหลัง</a>
+            <a href="#reportSection" class="btn btn-light btn-sm fw-bold">ตารางรายงานย้อนหลัง</a>
         </div>
     </div>
 </nav>
@@ -43,21 +43,13 @@
     </div>
 
     <div id="fridgeContainer" class="row g-4 mb-5"></div>
-
     <hr class="my-5">
-
     <div id="reportSection" class="card p-4 shadow-sm mb-5">
         <h4 class="fw-bold mb-4" style="color:var(--hosp-green)"><i class="fas fa-list-alt"></i> รายงานอุณหภูมิย้อนหลัง 500 รายการล่าสุด</h4>
         <div class="table-responsive">
             <table class="table table-hover align-middle table-bordered text-center">
                 <thead class="table-light">
-                    <tr>
-                        <th>วัน-เวลา</th>
-                        <th>ตู้เย็น (ID)</th>
-                        <th>อุณหภูมิช่องธรรมดา</th>
-                        <th>อุณหภูมิช่องแช่แข็ง</th>
-                        <th>สถานะการแจ้งเตือน</th>
-                    </tr>
+                    <tr><th>วัน-เวลา</th><th>ตู้เย็น (ID)</th><th>อุณหภูมิช่องธรรมดา</th><th>อุณหภูมิช่องแช่แข็ง</th><th>สถานะการแจ้งเตือน</th></tr>
                 </thead>
                 <tbody id="reportTable"></tbody>
             </table>
@@ -66,29 +58,24 @@
 </div>
 
 <script>
-    // 🌟 เปลี่ยนเป็น Web App URL ของพี่
+    // 🌟 เปลี่ยนเป็น Web App URL ของพี่ตรงนี้
     const API = "https://script.google.com/macros/s/AKfycby_x6ONgB88kyShpX2EFZgrgHLqN-LsCJ-eMiYhZt7I_FpdorEUcAFwOQuH6oUDsRVLSg/exec";
     
-    // ตัวแปรสำหรับเก็บค่า Settings (Min/Max) ของตู้แต่ละใบ เพื่อเอาไปเทียบใน Report
     let deviceSettings = {}; 
+    let chartInstances = {}; // เก็บ object กราฟเพื่อทำลายก่อนวาดใหม่
 
     async function loadData() {
         document.getElementById('loading').style.display = 'none';
         try {
-            // โหลด Dashboard
             const res = await fetch(`${API}?action=dashboard`);
             const dashboardData = await res.json();
             
-            // เก็บค่า Min/Max ไว้ในตัวแปร deviceSettings
             dashboardData.forEach(d => {
-                deviceSettings[d.dev] = { 
-                    name: d.name, nMin: d.nMin, nMax: d.nMax, fMin: d.fMin, fMax: d.fMax 
-                };
+                deviceSettings[d.dev] = { name: d.name, nMin: d.nMin, nMax: d.nMax, fMin: d.fMin, fMax: d.fMax };
             });
             
             renderDashboard(dashboardData);
 
-            // โหลด Report (ตาราง)
             const resRep = await fetch(`${API}?action=report`);
             const logs = await resRep.json();
             renderReport(logs);
@@ -100,35 +87,25 @@
         }
     }
 
-    // ฟังก์ชันช่วยคำนวณเวลา Offline
     function getOfflineText(lastUpdateStr) {
         if (!lastUpdateStr) return "ไม่เคยเชื่อมต่อ";
-        const now = new Date();
-        const last = new Date(lastUpdateStr);
-        const diffMs = now - last;
-        const diffMins = Math.floor(diffMs / 60000);
-        
-        if (diffMins <= 5) return "ONLINE"; // ไม่เกิน 5 นาที ถือว่าปกติ
-        
-        const hours = Math.floor(diffMins / 60);
-        const mins = diffMins % 60;
-        if (hours > 0) return `OFFLINE (${hours} ชม. ${mins} นาที)`;
-        return `OFFLINE (${mins} นาที)`;
+        const diffMins = Math.floor((new Date() - new Date(lastUpdateStr)) / 60000);
+        if (diffMins <= 5) return "ONLINE";
+        const hours = Math.floor(diffMins / 60); const mins = diffMins % 60;
+        return hours > 0 ? `OFFLINE (${hours} ชม. ${mins} นาที)` : `OFFLINE (${mins} นาที)`;
     }
 
     function renderDashboard(data) {
         const container = document.getElementById('fridgeContainer');
         container.innerHTML = data.map(item => {
-            // ตรวจสอบความผิดปกติของอุณหภูมิปัจจุบัน
             const isTNErr = (item.curTN !== "N/A" && (item.curTN < item.nMin || item.curTN > item.nMax));
             const isTFErr = (item.curTF !== "N/A" && (item.curTF < item.fMin || item.curTF > item.fMax));
-            
             const offlineText = getOfflineText(item.lastUpdate);
             const isOnline = offlineText === "ONLINE";
 
             return `
             <div class="col-lg-6">
-                <div class="card card-fridge p-4 h-100 bg-white">
+                <div class="card card-fridge p-4 h-100 bg-white shadow-sm">
                     <div class="d-flex justify-content-between mb-3 border-bottom pb-3">
                         <div>
                             <h5 class="fw-bold m-0 text-dark">${item.name}</h5>
@@ -138,85 +115,81 @@
                             <div class="${isOnline ? 'status-online' : 'status-offline'} mb-1">
                                 <i class="fas ${isOnline ? 'fa-wifi' : 'fa-exclamation-triangle'}"></i> ${offlineText}
                             </div>
-                            <small class="text-muted d-block" style="font-size:0.75rem">
-                                ล่าสุด: ${item.lastUpdate ? new Date(item.lastUpdate).toLocaleString('th-TH') : '-'}
-                            </small>
+                            <small class="text-muted d-block" style="font-size:0.75rem">ล่าสุด: ${item.lastUpdate ? new Date(item.lastUpdate).toLocaleString('th-TH') : '-'}</small>
                         </div>
                     </div>
                     
-                    <div class="row text-center mb-4">
+                    <div class="row text-center">
                         <div class="col-6 border-end">
-                            <small class="text-muted fw-bold d-block mb-1">NORMAL (ช่องธรรมดา)</small>
-                            <div class="limit-info d-inline-block mb-2">เกณฑ์: ${item.nMin} ถึง ${item.nMax}°C</div>
+                            <small class="text-success fw-bold d-block mb-1"><i class="fas fa-box"></i> ช่องธรรมดา</small>
+                            <div class="limit-info d-inline-block mb-1">เกณฑ์: ${item.nMin} ถึง ${item.nMax}°C</div>
                             <div class="temp-val ${isTNErr ? 'text-danger-blink' : 'text-success'}">${item.curTN}°</div>
                         </div>
                         <div class="col-6">
-                            <small class="text-muted fw-bold d-block mb-1">FREEZER (ช่องแช่แข็ง)</small>
-                            <div class="limit-info d-inline-block mb-2">เกณฑ์: ${item.fMin} ถึง ${item.fMax}°C</div>
+                            <small class="text-info fw-bold d-block mb-1"><i class="fas fa-snowflake"></i> ช่องแช่แข็ง</small>
+                            <div class="limit-info d-inline-block mb-1">เกณฑ์: ${item.fMin} ถึง ${item.fMax}°C</div>
                             <div class="temp-val ${isTFErr ? 'text-danger-blink' : 'text-info'}">${item.curTF}°</div>
                         </div>
                     </div>
+                    <canvas id="chart-${item.dev}"></canvas>
                 </div>
-            </div>
-            `;
+            </div>`;
         }).join('');
+
+        // วาดกราฟหลังจากสร้าง HTML เสร็จ
+        data.forEach(item => {
+            if (item.chartData && item.chartData.length > 0) {
+                const ctx = document.getElementById(`chart-${item.dev}`).getContext('2d');
+                if (chartInstances[item.dev]) chartInstances[item.dev].destroy(); // เคลียร์กราฟเก่าก่อน
+                
+                chartInstances[item.dev] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: item.chartData.map(c => c.time),
+                        datasets: [
+                            { label: 'ธรรมดา', data: item.chartData.map(c => c.tN), borderColor: '#198754', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                            { label: 'แช่แข็ง', data: item.chartData.map(c => c.tF), borderColor: '#0dcaf0', borderWidth: 2, pointRadius: 0, tension: 0.3 }
+                        ]
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: true } } }
+                });
+            }
+        });
     }
 
     function renderReport(logs) {
         const table = document.getElementById('reportTable');
-        
         table.innerHTML = logs.map(row => {
             const time = new Date(row[0]).toLocaleString('th-TH');
             const devId = row[1];
-            const tN = parseFloat(row[2]);
-            const tF = parseFloat(row[3]);
-            
-            // ดึงค่าเกณฑ์ของตู้นั้นๆ
+            const tN = parseFloat(row[2]); const tF = parseFloat(row[3]);
             const settings = deviceSettings[devId];
             
             let tNStatus = ""; let tNColor = "text-success";
             let tFStatus = ""; let tFColor = "text-info";
-            
-            // ตัวแปรเก็บสถานะผิดปกติ เพื่อป้องกันการเขียนทับกัน
             let errors = [];
 
             if (settings) {
-                // เช็กช่องธรรมดา
                 if (tN < settings.nMin || tN > settings.nMax) {
                     tNStatus = ` <i class="fas fa-arrow-${tN > settings.nMax ? 'up' : 'down'} text-danger"></i>`;
-                    tNColor = "text-danger fw-bold";
-                    errors.push("ธรรมดา"); // เพิ่มสถานะลงใน Array
+                    tNColor = "text-danger fw-bold"; errors.push("ธรรมดา");
                 }
-                
-                // เช็กช่องแช่แข็ง
                 if (tF < settings.fMin || tF > settings.fMax) {
                     tFStatus = ` <i class="fas fa-arrow-${tF > settings.fMax ? 'up' : 'down'} text-danger"></i>`;
-                    tFColor = "text-danger fw-bold";
-                    errors.push("แช่แข็ง"); // เพิ่มสถานะลงใน Array
+                    tFColor = "text-danger fw-bold"; errors.push("แช่แข็ง");
                 }
             }
 
-            // สร้างป้ายกำกับสถานะรวมตามข้อผิดพลาดที่เจอ
             let overallStatus = `<span class="badge bg-success">ปกติ</span>`;
-            if (errors.length > 0) {
-                // ถ้ามีข้อผิดพลาด เอา Array มาต่อกันด้วย +
-                overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (${errors.join(' + ')})</span>`;
-            }
+            if (errors.length > 0) overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (${errors.join(' + ')})</span>`;
 
-            return `
-            <tr>
-                <td>${time}</td>
-                <td class="fw-bold">${settings ? settings.name : devId} <br><small class="text-muted">(${devId})</small></td>
-                <td class="${tNColor}">${tN.toFixed(1)}°C ${tNStatus}</td>
-                <td class="${tFColor}">${tF.toFixed(1)}°C ${tFStatus}</td>
-                <td>${overallStatus}</td>
-            </tr>
-            `;
+            return `<tr><td>${time}</td><td class="fw-bold">${settings ? settings.name : devId} <br><small class="text-muted">(${devId})</small></td>
+                    <td class="${tNColor}">${tN.toFixed(1)}°C ${tNStatus}</td><td class="${tFColor}">${tF.toFixed(1)}°C ${tFStatus}</td><td>${overallStatus}</td></tr>`;
         }).join('');
     }
 
     loadData();
-    setInterval(loadData, 60000); // โหลดใหม่ทุก 1 นาที
+    setInterval(loadData, 60000); 
 </script>
 </body>
 </html>

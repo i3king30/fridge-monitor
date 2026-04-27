@@ -3,187 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AuraCold IoT Dashboard</title>
+    <title>AuraCold IoT System</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
-        /* ตัวแปรสีตามรูปตัวอย่าง */
-        :root {
-            --bg-dark: #0a1128;        /* สีพื้นหลังเข้มสุด */
-            --box-blue: #1e3a8a;       /* สีกล่องหลัก (น้ำเงิน) */
-            --box-cyan: #0284c7;       /* สีกล่องรอง (ฟ้า) */
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --alert-red: #ef4444;      /* สีแดงแจ้งเตือน */
-            --status-green: #22c55e;   /* สีเขียวปกติ */
+        :root { 
+            --hosp-teal: #00695c; 
+            --hosp-bg: #f4f7f6; /* พื้นหลังสีขาว/เทาอ่อน */
+            --box-blue: #1e3a8a; /* น้ำเงินเข้ม ช่องธรรมดา */
+            --box-cyan: #0284c7; /* ฟ้า ช่องแช่แข็ง */
+            --alert-red: #ef4444; 
         }
-
-        body {
-            font-family: 'Sarabun', sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            margin: 0;
-            padding: 20px;
-        }
-
-        .header-title {
-            text-align: center;
-            font-size: 2rem;
-            font-weight: 600;
-            margin-bottom: 30px;
-            color: #38bdf8;
-            text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
-        }
-
-        /* Container สำหรับกล่องตู้เย็น */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        /* กล่องหลักของตู้เย็นแต่ละตู้ */
-        .fridge-card {
-            background-color: var(--box-blue);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
-            position: relative;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        /* ชื่อตู้และสถานะ */
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 15px;
-        }
-
-        .fridge-name {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin: 0;
-        }
-
-        .fridge-id {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        /* สถานะ Online/Offline และ Mute Switch */
-        .status-badge {
-            font-size: 0.8rem;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-weight: 600;
-            display: inline-block;
-        }
-        .status-online { background-color: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.5); }
-        .status-offline { background-color: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); }
-        .update-time { display: block; font-size: 0.75rem; color: var(--text-muted); text-align: right; margin-top: 5px; }
-
-        /* กล่องอุณหภูมิ (แบบในรูป) */
-        .temp-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .temp-box {
-            background-color: var(--box-cyan);
-            border-radius: 10px;
-            padding: 15px;
-            text-align: center;
-            position: relative;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-
-        .temp-title {
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.9);
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-
-        .temp-value {
-            font-family: 'Noto Sans', sans-serif;
-            font-size: 3rem;
-            font-weight: 700;
-            line-height: 1.1;
-            margin: 10px 0;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .temp-limit {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.7);
-            background: rgba(0, 0, 0, 0.2);
-            padding: 3px 8px;
-            border-radius: 4px;
-            display: inline-block;
-        }
-
-        /* 🚨 การตั้งค่าสีแจ้งเตือน (สีแดงกระพริบเมื่อเกินเกณฑ์) */
-        .alert-mode {
-            background-color: var(--alert-red) !important;
-            animation: pulse-red 2s infinite;
-        }
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
-
-        /* กราฟ */
-        .chart-wrapper {
-            margin-top: 20px;
-            height: 100px;
-            background: rgba(0,0,0,0.1);
-            border-radius: 8px;
-            padding: 10px;
-        }
-        canvas { max-height: 100px; width: 100%; }
-
-        /* ปุ่มและ Mute Switch (สไตล์ Modern) */
-        .controls { margin-top: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .switch-label { font-size: 0.85rem; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 8px;}
+        body { font-family: 'Sarabun', sans-serif; background-color: var(--hosp-bg); }
+        .navbar { background: var(--hosp-teal) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .navbar-brand { white-space: normal !important; line-height: 1.4; font-size: 1.3rem; }
         
-        /* Custom Checkbox สำหรับ Mute */
-        .toggle-switch { position: relative; width: 40px; height: 20px; display: inline-block; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--status-green); }
-        input:checked + .slider:before { transform: translateX(20px); }
+        .card-fridge { border: none; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); background: white; }
+        .card-hosp-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 15px 20px; border-bottom: 1px solid #eee; }
+        .card-hosp-title { font-weight: 600; font-size: 1.25rem; margin: 0; color: #333;}
+        .card-hosp-id { font-size: 0.8rem; color: #666; }
+        
+        .status-online-hosp { color: #2e7d32; font-size: 0.85rem; font-weight: bold; background: #e8f5e9; padding: 4px 10px; border-radius: 20px; }
+        .status-offline-hosp { color: #c62828; font-size: 0.85rem; font-weight: bold; background: #ffebee; padding: 4px 10px; border-radius: 20px; }
 
-        .btn-settings { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: 0.2s;}
-        .btn-settings:hover { background: rgba(255,255,255,0.2); }
+        /* 🟦 สไตล์กล่องอุณหภูมิแบบใหม่ (น้ำเงิน/ฟ้า) */
+        .temp-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .temp-box { border-radius: 12px; padding: 15px; text-align: center; color: white; position: relative; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.1); transition: 0.3s;}
+        .box-normal { background-color: var(--box-blue); }
+        .box-freezer { background-color: var(--box-cyan); }
+        
+        .temp-title { font-size: 0.9rem; margin-bottom: 5px; font-weight: 600; opacity: 0.9;}
+        .temp-value { font-family: 'Noto Sans', sans-serif; font-size: 3rem; font-weight: 700; line-height: 1; margin: 5px 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+        .temp-limit { font-size: 0.75rem; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 6px; display: inline-block; }
 
-        /* Loader */
-        .loader { text-align: center; color: #38bdf8; margin: 50px 0; }
+        /* 🚨 เอฟเฟกต์ไฟกระพริบสีแดงเมื่อผิดปกติ */
+        .alert-mode { background-color: var(--alert-red) !important; animation: pulse-red 1.5s infinite; }
+        @keyframes pulse-red { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        canvas { max-height: 120px; width: 100%; margin-top: 15px; }
+        .alert-disabled-body { opacity: 0.6; filter: grayscale(80%); pointer-events: none; }
+        
+        /* สวิตช์และปุ่มตั้งค่า */
+        .controls { margin-top: 15px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 15px;}
+        .form-check-input { width: 2.5em !important; height: 1.2em !important; cursor: pointer; }
+        .form-check-label { cursor: pointer; font-size: 0.85rem; font-weight: bold; margin-left: 5px; margin-top: 3px;}
+        .btn-settings { background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; cursor: pointer; font-weight: bold;}
+        .btn-settings:hover { background: #e2e8f0; }
+
+        /* ตารางรายงาน */
+        .pagination .page-item.active .page-link { background-color: var(--hosp-teal); border-color: var(--hosp-teal); color: white; }
+        .pagination .page-link { color: var(--hosp-teal); cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="header-title">
-        <i class="fas fa-satellite-dish"></i> AuraCold IoT Dashboard
-    </div>
-
-    <div id="loading" class="loader">
-        <i class="fas fa-circle-notch fa-spin fa-2x"></i>
-        <p class="mt-2">กำลังเชื่อมต่อฐานข้อมูล...</p>
-    </div>
-
-    <div id="fridgeContainer" class="dashboard-grid">
+<nav class="navbar navbar-dark mb-4 py-3">
+    <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+        <span class="navbar-brand fw-bold text-center text-md-start m-0 w-100">
+            <i class="fas fa-hospital-user"></i> AuraCold IoT System<br>
+            <small style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">ระบบติดตามอุณหภูมิตู้เย็นอัจฉริยะ</small>
+        </span>
+        <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100 justify-content-md-end justify-content-center">
+            <span id="last-sync-time" class="text-white small"></span>
+            <a href="#reportSection" class="btn btn-light btn-sm fw-bold">ตารางรายงานย้อนหลัง</a>
         </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div id="loading" class="text-center my-5">
+        <div class="spinner-border text-teal" style="color: var(--hosp-teal);" role="status"></div>
+        <h5 class="mt-3">กำลังเชื่อมต่อฐานข้อมูล...</h5>
+    </div>
+
+    <div id="fridgeContainer" class="row g-4 mb-5"></div>
+    <hr class="my-5">
+    
+    <div id="reportSection" class="card p-4 shadow-sm mb-5 border-0 rounded-4">
+        <h4 class="fw-bold mb-4" style="color:var(--hosp-teal)"><i class="fas fa-list-alt"></i> รายงานอุณหภูมิย้อนหลัง 500 รายการล่าสุด</h4>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle table-bordered text-center">
+                <thead class="table-light">
+                    <tr><th>วัน-เวลา</th><th>ตู้เย็น (ID)</th><th>อุณหภูมิช่องธรรมดา</th><th>อุณหภูมิช่องแช่แข็ง</th><th>สถานะการแจ้งเตือน</th></tr>
+                </thead>
+                <tbody id="reportTable"></tbody>
+            </table>
+        </div>
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center" id="paginationControls"></ul>
+        </nav>
+    </div>
+</div>
+
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header text-white" style="background: var(--hosp-teal);">
+        <h5 class="modal-title fw-bold"><i class="fas fa-cog"></i> ตั้งค่าตู้เย็น</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editDevId">
+        <div class="mb-3">
+          <label class="form-label fw-bold">ชื่อตู้เย็น / แผนก</label>
+          <input type="text" class="form-control" id="editName">
+        </div>
+        <div class="row">
+          <div class="col-6 mb-3">
+            <label class="form-label fw-bold text-primary">ช่องธรรมดา ต่ำสุด (°C)</label>
+            <input type="number" step="0.1" class="form-control" id="editNMin">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="form-label fw-bold text-primary">ช่องธรรมดา สูงสุด (°C)</label>
+            <input type="number" step="0.1" class="form-control" id="editNMax">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-6 mb-3">
+            <label class="form-label fw-bold text-info">ช่องแช่แข็ง ต่ำสุด (°C)</label>
+            <input type="number" step="0.1" class="form-control" id="editFMin">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="form-label fw-bold text-info">ช่องแช่แข็ง สูงสุด (°C)</label>
+            <input type="number" step="0.1" class="form-control" id="editFMax">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button type="button" class="btn text-white" style="background: var(--hosp-teal);" onclick="saveSettings()" id="btnSaveSettings">บันทึกการตั้งค่า</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
     // 🌟 เปลี่ยนเป็น Web App URL ของพี่ตรงนี้
@@ -191,39 +147,137 @@
     
     let deviceSettings = {}; 
     let chartInstances = {};
+    
+    let allReportLogs = []; 
+    let currentPage = 1;    
+    const rowsPerPage = 50; 
 
     async function loadData() {
         document.getElementById('loading').style.display = 'none';
         try {
             const res = await fetch(`${API}?action=dashboard`);
-            const data = await res.json();
-            
-            data.forEach(d => {
+            const dashboardData = await res.json();
+            dashboardData.forEach(d => {
                 deviceSettings[d.dev] = { name: d.name, nMin: d.nMin, nMax: d.nMax, fMin: d.fMin, fMax: d.fMax };
             });
+            renderDashboard(dashboardData);
+
+            const resRep = await fetch(`${API}?action=report`);
+            allReportLogs = await resRep.json(); 
+            renderTablePage(currentPage); 
             
-            renderDashboard(data);
-        } catch (e) { 
-            console.error("Error loading data:", e);
-            document.getElementById('loading').innerHTML = "<span style='color:#ef4444'>ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองใหม่</span>";
+            document.getElementById('last-sync-time').innerText = `อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH')}`;
+        } catch (e) { console.error(e); }
+    }
+
+    function renderTablePage(page) {
+        const table = document.getElementById('reportTable');
+        const startIndex = (page - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        const paginatedLogs = allReportLogs.slice(startIndex, endIndex);
+
+        table.innerHTML = paginatedLogs.map(row => {
+            const time = new Date(row[0]).toLocaleString('th-TH');
+            const devId = row[1];
+            const tN = parseFloat(row[2]); const tF = parseFloat(row[3]);
+            const settings = deviceSettings[devId];
+            
+            let tNStatus = ""; let tNColor = "text-success";
+            let tFStatus = ""; let tFColor = "text-info";
+            let errors = [];
+
+            if (settings) {
+                if (tN < settings.nMin || tN > settings.nMax) {
+                    tNStatus = ` <i class="fas fa-arrow-${tN > settings.nMax ? 'up' : 'down'} text-danger"></i>`;
+                    tNColor = "text-danger fw-bold"; errors.push("ธรรมดา");
+                }
+                if (tF < settings.fMin || tF > settings.fMax) {
+                    tFStatus = ` <i class="fas fa-arrow-${tF > settings.fMax ? 'up' : 'down'} text-danger"></i>`;
+                    tFColor = "text-danger fw-bold"; errors.push("แช่แข็ง");
+                }
+            }
+
+            let overallStatus = `<span class="badge bg-success">ปกติ</span>`;
+            if (errors.length > 0) overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (${errors.join(' + ')})</span>`;
+
+            return `<tr><td>${time}</td><td class="fw-bold">${settings ? settings.name : devId} <br><small class="text-muted">(${devId})</small></td>
+                    <td class="${tNColor}">${tN.toFixed(1)}°C ${tNStatus}</td><td class="${tFColor}">${tF.toFixed(1)}°C ${tFStatus}</td><td>${overallStatus}</td></tr>`;
+        }).join('');
+        renderPaginationControls();
+    }
+
+    function renderPaginationControls() {
+        const totalPages = Math.ceil(allReportLogs.length / rowsPerPage);
+        const paginationList = document.getElementById('paginationControls');
+        let html = `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" onclick="changePage(${currentPage - 1})">ก่อนหน้า</a></li>`;
+        
+        // โชว์หน้าจำกัด ป้องกันปุ่มเยอะเกินไป
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, currentPage + 2);
+        
+        for(let i = startPage; i <= endPage; i++) {
+            html += `<li class="page-item ${currentPage === i ? 'active' : ''}"><a class="page-link" onclick="changePage(${i})">${i}</a></li>`;
         }
+        html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" onclick="changePage(${currentPage + 1})">ถัดไป</a></li>`;
+        paginationList.innerHTML = html;
+    }
+
+    function changePage(page) {
+        const totalPages = Math.ceil(allReportLogs.length / rowsPerPage);
+        if (page >= 1 && page <= totalPages) {
+            currentPage = page;
+            renderTablePage(currentPage);
+            document.getElementById('reportSection').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    function openSettings(devId) {
+        const dev = deviceSettings[devId];
+        if(!dev) return;
+        document.getElementById('editDevId').value = devId;
+        document.getElementById('editName').value = dev.name;
+        document.getElementById('editNMin').value = dev.nMin;
+        document.getElementById('editNMax').value = dev.nMax;
+        document.getElementById('editFMin').value = dev.fMin;
+        document.getElementById('editFMax').value = dev.fMax;
+        new bootstrap.Modal(document.getElementById('settingsModal')).show();
+    }
+
+    async function saveSettings() {
+        const devId = document.getElementById('editDevId').value;
+        const name = document.getElementById('editName').value;
+        const nMin = document.getElementById('editNMin').value;
+        const nMax = document.getElementById('editNMax').value;
+        const fMin = document.getElementById('editFMin').value;
+        const fMax = document.getElementById('editFMax').value;
+        
+        const btn = document.getElementById('btnSaveSettings');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        btn.disabled = true;
+
+        try {
+            await fetch(`${API}?action=update_settings&devId=${encodeURIComponent(devId)}&name=${encodeURIComponent(name)}&nMin=${nMin}&nMax=${nMax}&fMin=${fMin}&fMax=${fMax}`);
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            loadData();
+        } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); } 
+        finally { btn.innerHTML = 'บันทึกการตั้งค่า'; btn.disabled = false; }
     }
 
     async function toggleAlert(devId, isChecked) {
+        const label = document.getElementById(`alert-label-${devId}`);
+        label.innerHTML = `<span class="spinner-border spinner-border-sm text-secondary"></span>`;
         try {
             await fetch(`${API}?action=toggle_alert&devId=${devId}`);
             loadData();
-        } catch (error) {
-            alert("ไม่สามารถเปลี่ยนสถานะได้ กรุณาลองใหม่");
-        }
+        } catch (error) { alert("ไม่สามารถเปลี่ยนสถานะได้"); loadData(); }
     }
 
-    function getOfflineStatus(lastUpdateStr) {
-        if (!lastUpdateStr) return { online: false, text: "ไม่เคยเชื่อมต่อ" };
+    function getOfflineText(lastUpdateStr) {
+        if (!lastUpdateStr) return "ไม่เคยเชื่อมต่อ";
         const diffMins = Math.floor((new Date() - new Date(lastUpdateStr)) / 60000);
-        if (diffMins <= 5) return { online: true, text: "ONLINE" };
+        if (diffMins <= 5) return "ONLINE";
         const hours = Math.floor(diffMins / 60); const mins = diffMins % 60;
-        return { online: false, text: hours > 0 ? `OFFLINE ${hours}h ${mins}m` : `OFFLINE ${mins}m` };
+        return hours > 0 ? `OFFLINE (${hours} ชม. ${mins} นาที)` : `OFFLINE (${mins} นาที)`;
     }
 
     function renderDashboard(data) {
@@ -231,81 +285,72 @@
         container.innerHTML = data.map(item => {
             const isTNErr = (item.curTN !== "N/A" && (item.curTN < item.nMin || item.curTN > item.nMax));
             const isTFErr = (item.curTF !== "N/A" && (item.curTF < item.fMin || item.fMax < item.curTF));
-            const status = getOfflineStatus(item.lastUpdate);
+            const offlineText = getOfflineText(item.lastUpdate);
+            const isOnline = offlineText === "ONLINE";
             const isAlertOn = item.alertEnabled === 1;
 
             return `
-            <div class="fridge-card">
-                <div class="card-header">
-                    <div>
-                        <h2 class="fridge-name">${item.name}</h2>
-                        <span class="fridge-id"><i class="fas fa-microchip"></i> ID: ${item.dev}</span>
-                    </div>
-                    <div style="text-align: right;">
-                        <div class="status-badge ${status.online ? 'status-online' : 'status-offline'}">
-                            <i class="fas ${status.online ? 'fa-wifi' : 'fa-exclamation-triangle'}"></i> ${status.text}
+            <div class="col-lg-6">
+                <div class="card card-fridge shadow-sm p-4">
+                    <div class="card-hosp-header px-0 pt-0">
+                        <div>
+                            <h5 class="card-hosp-title">${item.name}</h5>
+                            <span class="card-hosp-id"><i class="fas fa-microchip"></i> ID: ${item.dev}</span>
                         </div>
-                        <span class="update-time">${item.lastUpdate ? new Date(item.lastUpdate).toLocaleTimeString('th-TH') : '-'}</span>
-                    </div>
-                </div>
-
-                <div class="temp-container">
-                    <div class="temp-box ${isTNErr ? 'alert-mode' : ''}" style="${!isAlertOn ? 'opacity:0.5' : ''}">
-                        <div class="temp-title">ช่องธรรมดา (Normal)</div>
-                        <div class="temp-value">${item.curTN}</div>
-                        <div class="temp-limit">Min: ${item.nMin} | Max: ${item.nMax}</div>
-                    </div>
-                    
-                    <div class="temp-box ${isTFErr ? 'alert-mode' : ''}" style="${!isAlertOn ? 'opacity:0.5' : ''}">
-                        <div class="temp-title">ช่องแช่แข็ง (Freezer)</div>
-                        <div class="temp-value">${item.curTF}</div>
-                        <div class="temp-limit">Min: ${item.fMin} | Max: ${item.fMax}</div>
-                    </div>
-                </div>
-
-                <div class="chart-wrapper">
-                    <canvas id="chart-${item.dev}"></canvas>
-                </div>
-
-                <div class="controls">
-                    <label class="switch-label">
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="switch-${item.dev}" ${isAlertOn ? 'checked' : ''} onchange="toggleAlert('${item.dev}', this.checked)">
-                            <span class="slider"></span>
+                        <div class="text-end">
+                            <div class="${isOnline ? 'status-online-hosp' : 'status-offline-hosp'} mb-1">
+                                <i class="fas ${isOnline ? 'fa-wifi' : 'fa-exclamation-triangle'}"></i> ${offlineText}
+                            </div>
+                            <small class="text-muted d-block" style="font-size:0.7rem">ล่าสุด: ${item.lastUpdate ? new Date(item.lastUpdate).toLocaleString('th-TH') : '-'}</small>
                         </div>
-                        ${isAlertOn ? '<i class="fas fa-bell text-success"></i> แจ้งเตือนทำงาน' : '<i class="fas fa-bell-slash text-danger"></i> ปิดแจ้งเตือน'}
-                    </label>
-                    <button class="btn-settings" onclick="alert('ฟีเจอร์ตั้งค่า (ใส่โค้ด Modal เดิมได้เลยครับ)')"><i class="fas fa-cog"></i> ตั้งค่า</button>
+                    </div>
+
+                    <div class="${isAlertOn ? '' : 'alert-disabled-body'}">
+                        <div class="temp-container">
+                            <div class="temp-box box-normal ${isTNErr ? 'alert-mode' : ''}">
+                                <div class="temp-title"><i class="fas fa-box"></i> ช่องธรรมดา</div>
+                                <div class="temp-value">${item.curTN}</div>
+                                <div class="temp-limit">เกณฑ์: ${item.nMin} ถึง ${item.nMax}°C</div>
+                            </div>
+                            <div class="temp-box box-freezer ${isTFErr ? 'alert-mode' : ''}">
+                                <div class="temp-title"><i class="fas fa-snowflake"></i> ช่องแช่แข็ง</div>
+                                <div class="temp-value">${item.curTF}</div>
+                                <div class="temp-limit">เกณฑ์: ${item.fMin} ถึง ${item.fMax}°C</div>
+                            </div>
+                        </div>
+
+                        <canvas id="chart-${item.dev}"></canvas>
+                    </div>
+
+                    <div class="controls">
+                        <div class="form-check form-switch m-0 d-flex align-items-center">
+                            <input class="form-check-input" type="checkbox" id="switch-${item.dev}" ${isAlertOn ? 'checked' : ''} onchange="toggleAlert('${item.dev}', this.checked)">
+                            <label class="form-check-label ${isAlertOn ? 'text-success' : 'text-danger'}" id="alert-label-${item.dev}" for="switch-${item.dev}">
+                                ${isAlertOn ? "<i class='fas fa-bell'></i> เตือน" : "<i class='fas fa-bell-slash'></i> ปิดเตือน"}
+                            </label>
+                        </div>
+                        <button class="btn-settings" onclick="openSettings('${item.dev}')"><i class="fas fa-cog"></i> ตั้งค่า</button>
+                    </div>
                 </div>
             </div>`;
         }).join('');
 
-        // วาดกราฟ (ปรับสีให้เข้ากับธีมมืด)
         data.forEach(item => {
             if (item.chartData && item.chartData.length > 0) {
                 const ctx = document.getElementById(`chart-${item.dev}`).getContext('2d');
                 if (chartInstances[item.dev]) chartInstances[item.dev].destroy(); 
                 
-                Chart.defaults.color = '#94a3b8'; // สีแกนกราฟ
-                
+                Chart.defaults.color = '#94a3b8';
                 chartInstances[item.dev] = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: item.chartData.map(c => c.time),
                         datasets: [
-                            { label: 'Normal', data: item.chartData.map(c => c.tN), borderColor: '#4ade80', borderWidth: 2, pointRadius: 0, tension: 0.4 },
-                            { label: 'Freezer', data: item.chartData.map(c => c.tF), borderColor: '#38bdf8', borderWidth: 2, pointRadius: 0, tension: 0.4 }
+                            { label: 'Normal', data: item.chartData.map(c => c.tN), borderColor: '#1e3a8a', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                            { label: 'Freezer', data: item.chartData.map(c => c.tF), borderColor: '#0284c7', borderWidth: 2, pointRadius: 0, tension: 0.3 }
                         ]
                     },
-                    options: { 
-                        responsive: true, 
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } }, 
-                        scales: { 
-                            x: { display: false }, 
-                            y: { display: true, grid: { color: 'rgba(255,255,255,0.1)' } } 
-                        } 
-                    }
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: true } } }
                 });
             }
         });

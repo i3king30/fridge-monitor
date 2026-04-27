@@ -13,6 +13,10 @@
         :root { --hosp-teal: #00695c; --hosp-green: #2e7d32; --hosp-bg: #f4f7f6; }
         body { font-family: 'Sarabun', sans-serif; background-color: var(--hosp-bg); }
         .navbar { background: var(--hosp-teal) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* 📱 แก้ไขให้หัวข้อตัดบรรทัดบนมือถือ */
+        .navbar-brand { white-space: normal !important; line-height: 1.4; font-size: 1.3rem; }
+        
         .card-fridge { border: none; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         .card-hosp-header { background: var(--hosp-teal); color: white; padding: 15px 20px; border: none; }
         .card-hosp-title { font-weight: 600; font-size: 1.25rem; margin: 0; color: white;}
@@ -33,18 +37,20 @@
         canvas { max-height: 120px; width: 100%; margin-top: 15px; }
         .alert-disabled-body { opacity: 0.7; filter: grayscale(70%); }
         
-        /* ปุ่มตั้งค่าใน Header */
         .btn-settings { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 5px; padding: 2px 8px; font-size: 0.85rem; cursor: pointer; transition: 0.2s;}
         .btn-settings:hover { background: rgba(255,255,255,0.4); }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-dark mb-4">
-    <div class="container d-flex justify-content-between align-items-center">
-        <span class="navbar-brand fw-bold"><i class="fas fa-hospital-user"></i>  AuraCold IoT: แพลตฟอร์มเฝ้าระวังอุณหภูมิตู้เย็นทางการแพทย์อัจฉริยะ</span>
-        <div>
-            <span id="last-sync-time" class="text-white small me-3"></span>
+<nav class="navbar navbar-dark mb-4 py-3">
+    <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+        <span class="navbar-brand fw-bold text-center text-md-start m-0 w-100">
+            <i class="fas fa-hospital-user"></i> PharmaSense IoT System<br>
+            <small style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">  AuraCold IoT: แพลตฟอร์มเฝ้าระวังอุณหภูมิตู้เย็นทางการแพทย์อัจฉริยะ</small>
+        </span>
+        <div class="d-flex flex-column flex-sm-row align-items-center gap-2 w-100 justify-content-md-end justify-content-center">
+            <span id="last-sync-time" class="text-white small"></span>
             <a href="#reportSection" class="btn btn-light btn-sm fw-bold">ตารางรายงานย้อนหลัง</a>
         </div>
     </div>
@@ -141,7 +147,6 @@
         } catch (e) { console.error(e); }
     }
 
-    // 🔀 ฟังก์ชันเปิดหน้าต่างตั้งค่า (Modal)
     function openSettings(devId) {
         const dev = deviceSettings[devId];
         if(!dev) return;
@@ -157,7 +162,6 @@
         modal.show();
     }
 
-    // 💾 ฟังก์ชันบันทึกการตั้งค่าไปที่ Cloud
     async function saveSettings() {
         const devId = document.getElementById('editDevId').value;
         const name = document.getElementById('editName').value;
@@ -174,12 +178,10 @@
             const url = `${API}?action=update_settings&devId=${encodeURIComponent(devId)}&name=${encodeURIComponent(name)}&nMin=${nMin}&nMax=${nMax}&fMin=${fMin}&fMax=${fMax}`;
             await fetch(url);
             
-            // ปิดหน้าต่าง Pop-up
             const modalEl = document.getElementById('settingsModal');
             const modal = bootstrap.Modal.getInstance(modalEl);
             modal.hide();
             
-            // โหลดข้อมูลใหม่
             loadData();
         } catch (err) {
             alert('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่');

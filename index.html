@@ -14,7 +14,6 @@
         body { font-family: 'Sarabun', sans-serif; background-color: var(--hosp-bg); }
         .navbar { background: var(--hosp-teal) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         
-        /* 📱 แก้ไขให้หัวข้อตัดบรรทัดบนมือถือ */
         .navbar-brand { white-space: normal !important; line-height: 1.4; font-size: 1.3rem; }
         
         .card-fridge { border: none; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
@@ -39,6 +38,10 @@
         
         .btn-settings { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 5px; padding: 2px 8px; font-size: 0.85rem; cursor: pointer; transition: 0.2s;}
         .btn-settings:hover { background: rgba(255,255,255,0.4); }
+
+        /* ปรับแต่งสีปุ่มแบ่งหน้า (Pagination) ให้เข้ากับ Theme โรงพยาบาล */
+        .pagination .page-item.active .page-link { background-color: var(--hosp-teal); border-color: var(--hosp-teal); color: white; }
+        .pagination .page-link { color: var(--hosp-teal); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -75,6 +78,11 @@
                 <tbody id="reportTable"></tbody>
             </table>
         </div>
+        
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center" id="paginationControls">
+            </ul>
+        </nav>
     </div>
 </div>
 
@@ -126,25 +134,108 @@
     
     let deviceSettings = {}; 
     let chartInstances = {};
+    
+    // 🗂️ ตัวแปรสำหรับระบบ Pagination
+    let allReportLogs = []; // เก็บข้อมูลตารางทั้งหมด 500 แถว
+    let currentPage = 1;    // หน้าที่กำลังดูอยู่
+    const rowsPerPage = 50; // จำนวนแถวต่อหน้า (ตั้งไว้ 50 ตามที่พี่ต้องการ)
 
     async function loadData() {
         document.getElementById('loading').style.display = 'none';
         try {
+            // ดึงข้อมูล Dashboard
             const res = await fetch(`${API}?action=dashboard`);
             const dashboardData = await res.json();
             
             dashboardData.forEach(d => {
                 deviceSettings[d.dev] = { name: d.name, nMin: d.nMin, nMax: d.nMax, fMin: d.fMin, fMax: d.fMax };
             });
-            
             renderDashboard(dashboardData);
 
+            // ดึงข้อมูล Report
             const resRep = await fetch(`${API}?action=report`);
-            const logs = await resRep.json();
-            renderReport(logs);
+            allReportLogs = await resRep.json(); // เก็บข้อมูลทั้งหมดไว้ในตัวแปร
+            renderTablePage(currentPage); // วาดตารางตามหน้าปัจจุบัน
             
             document.getElementById('last-sync-time').innerText = `อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH')}`;
         } catch (e) { console.error(e); }
+    }
+
+    // ฟังก์ชันวาดตารางเฉพาะข้อมูลในหน้าปัจจุบัน
+    function renderTablePage(page) {
+        const table = document.getElementById('reportTable');
+        
+        // คำนวณจุดเริ่มต้นและจุดสิ้นสุดของข้อมูลในหน้านั้นๆ
+        const startIndex = (page - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        const paginatedLogs = allReportLogs.slice(startIndex, endIndex);
+
+        table.innerHTML = paginatedLogs.map(row => {
+            const time = new Date(row[0]).toLocaleString('th-TH');
+            const devId = row[1];
+            const tN = parseFloat(row[2]); const tF = parseFloat(row[3]);
+            const settings = deviceSettings[devId];
+            
+            let tNStatus = ""; let tNColor = "text-success";
+            let tFStatus = ""; let tFColor = "text-info";
+            let errors = [];
+
+            if (settings) {
+                if (tN < settings.nMin || tN > settings.nMax) {
+                    tNStatus = ` <i class="fas fa-arrow-${tN > settings.nMax ? 'up' : 'down'} text-danger"></i>`;
+                    tNColor = "text-danger fw-bold"; errors.push("ธรรมดา");
+                }
+                if (tF < settings.fMin || tF > settings.fMax) {
+                    tFStatus = ` <i class="fas fa-arrow-${tF > settings.fMax ? 'up' : 'down'} text-danger"></i>`;
+                    tFColor = "text-danger fw-bold"; errors.push("แช่แข็ง");
+                }
+            }
+
+            let overallStatus = `<span class="badge bg-success">ปกติ</span>`;
+            if (errors.length > 0) overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (${errors.join(' + ')})</span>`;
+
+            return `<tr><td>${time}</td><td class="fw-bold">${settings ? settings.name : devId} <br><small class="text-muted">(${devId})</small></td>
+                    <td class="${tNColor}">${tN.toFixed(1)}°C ${tNStatus}</td><td class="${tFColor}">${tF.toFixed(1)}°C ${tFStatus}</td><td>${overallStatus}</td></tr>`;
+        }).join('');
+
+        renderPaginationControls(); // อัปเดตปุ่มตัวเลขหน้า
+    }
+
+    // ฟังก์ชันวาดปุ่มแบ่งหน้า 1, 2, 3...
+    function renderPaginationControls() {
+        const totalPages = Math.ceil(allReportLogs.length / rowsPerPage);
+        const paginationList = document.getElementById('paginationControls');
+        let html = '';
+
+        // ปุ่มย้อนกลับ
+        html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                   <a class="page-link" onclick="changePage(${currentPage - 1})">ก่อนหน้า</a>
+                 </li>`;
+        
+        // ปุ่มตัวเลข
+        for(let i = 1; i <= totalPages; i++) {
+            html += `<li class="page-item ${currentPage === i ? 'active' : ''}">
+                       <a class="page-link" onclick="changePage(${i})">${i}</a>
+                     </li>`;
+        }
+
+        // ปุ่มถัดไป
+        html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                   <a class="page-link" onclick="changePage(${currentPage + 1})">ถัดไป</a>
+                 </li>`;
+
+        paginationList.innerHTML = html;
+    }
+
+    // ฟังก์ชันเปลี่ยนหน้าเมื่อผู้ใช้กดคลิก
+    function changePage(page) {
+        const totalPages = Math.ceil(allReportLogs.length / rowsPerPage);
+        if (page >= 1 && page <= totalPages) {
+            currentPage = page;
+            renderTablePage(currentPage);
+            // เลื่อนหน้าจอกลับไปที่หัวตาราง
+            document.getElementById('reportSection').scrollIntoView({ behavior: 'smooth' });
+        }
     }
 
     function openSettings(devId) {
@@ -283,37 +374,6 @@
                 });
             }
         });
-    }
-
-    function renderReport(logs) {
-        const table = document.getElementById('reportTable');
-        table.innerHTML = logs.map(row => {
-            const time = new Date(row[0]).toLocaleString('th-TH');
-            const devId = row[1];
-            const tN = parseFloat(row[2]); const tF = parseFloat(row[3]);
-            const settings = deviceSettings[devId];
-            
-            let tNStatus = ""; let tNColor = "text-success";
-            let tFStatus = ""; let tFColor = "text-info";
-            let errors = [];
-
-            if (settings) {
-                if (tN < settings.nMin || tN > settings.nMax) {
-                    tNStatus = ` <i class="fas fa-arrow-${tN > settings.nMax ? 'up' : 'down'} text-danger"></i>`;
-                    tNColor = "text-danger fw-bold"; errors.push("ธรรมดา");
-                }
-                if (tF < settings.fMin || tF > settings.fMax) {
-                    tFStatus = ` <i class="fas fa-arrow-${tF > settings.fMax ? 'up' : 'down'} text-danger"></i>`;
-                    tFColor = "text-danger fw-bold"; errors.push("แช่แข็ง");
-                }
-            }
-
-            let overallStatus = `<span class="badge bg-success">ปกติ</span>`;
-            if (errors.length > 0) overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (${errors.join(' + ')})</span>`;
-
-            return `<tr><td>${time}</td><td class="fw-bold">${settings ? settings.name : devId} <br><small class="text-muted">(${devId})</small></td>
-                    <td class="${tNColor}">${tN.toFixed(1)}°C ${tNStatus}</td><td class="${tFColor}">${tF.toFixed(1)}°C ${tFStatus}</td><td>${overallStatus}</td></tr>`;
-        }).join('');
     }
 
     loadData();

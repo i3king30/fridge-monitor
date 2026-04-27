@@ -14,14 +14,17 @@
         .navbar { background: var(--hosp-green) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .card-fridge { border: none; border-radius: 12px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         .temp-val { font-size: 2.8rem; font-weight: 600; line-height: 1; margin: 5px 0; }
-        
         .status-online { color: #2e7d32; font-size: 0.85rem; font-weight: bold; background: #e8f5e9; padding: 4px 10px; border-radius: 20px;}
         .status-offline { color: #c62828; font-size: 0.85rem; font-weight: bold; background: #ffebee; padding: 4px 10px; border-radius: 20px;}
         .text-danger-blink { color: #d32f2f !important; font-weight: bold; animation: blinker 1.5s linear infinite; }
         .limit-info { font-size: 0.8rem; color: #555; background: #e0e0e0; padding: 2px 8px; border-radius: 6px; }
-        
         @keyframes blinker { 50% { opacity: 0.4; } }
         canvas { max-height: 120px; width: 100%; margin-top: 15px; }
+        
+        /* สไตล์ปุ่ม Switch ปิดแจ้งเตือน */
+        .form-switch .form-check-input { width: 2.5em; height: 1.2em; cursor: pointer; }
+        .form-switch .form-check-label { cursor: pointer; font-size: 0.85rem; font-weight: bold; padding-top: 2px; }
+        .alert-disabled-overlay { opacity: 0.6; pointer-events: none; filter: grayscale(100%); }
     </style>
 </head>
 <body>
@@ -62,7 +65,7 @@
     const API = "https://script.google.com/macros/s/AKfycby_x6ONgB88kyShpX2EFZgrgHLqN-LsCJ-eMiYhZt7I_FpdorEUcAFwOQuH6oUDsRVLSg/exec";
     
     let deviceSettings = {}; 
-    let chartInstances = {}; // เก็บ object กราฟเพื่อทำลายก่อนวาดใหม่
+    let chartInstances = {};
 
     async function loadData() {
         document.getElementById('loading').style.display = 'none';
@@ -83,7 +86,25 @@
             document.getElementById('last-sync-time').innerText = `อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH')}`;
         } catch (e) { 
             console.error(e); 
-            document.getElementById('loading').innerHTML = "<h5 class='text-danger'>การเชื่อมต่อล้มเหลว โปรดตรวจสอบ URL หรืออินเทอร์เน็ต</h5>";
+        }
+    }
+
+    // ฟังก์ชันสั่งเปิด-ปิดแจ้งเตือนไปที่ Cloud
+    async function toggleAlert(devId, isChecked) {
+        // ให้สวิตช์ขึ้นสถานะกำลังโหลด
+        const label = document.getElementById(`alert-label-${devId}`);
+        label.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> รอสักครู่...`;
+        
+        try {
+            // ยิง Request ไปที่ Google Apps Script
+            const url = `${API}?action=toggle_alert&devId=${devId}`;
+            await fetch(url);
+            // เรียกข้อมูลใหม่เพื่ออัปเดตหน้าจอ
+            loadData();
+        } catch (error) {
+            console.error(error);
+            alert("ไม่สามารถเปลี่ยนสถานะได้ กรุณาลองใหม่");
+            loadData(); // รีเฟรชกลับค่าเดิมถ้า Error
         }
     }
 
@@ -99,49 +120,66 @@
         const container = document.getElementById('fridgeContainer');
         container.innerHTML = data.map(item => {
             const isTNErr = (item.curTN !== "N/A" && (item.curTN < item.nMin || item.curTN > item.nMax));
-            const isTFErr = (item.curTF !== "N/A" && (item.curTF < item.fMin || item.curTF > item.fMax));
+            const isTFErr = (item.curTF !== "N/A" && (item.curTF < item.fMin || item.fMax < item.curTF));
             const offlineText = getOfflineText(item.lastUpdate);
             const isOnline = offlineText === "ONLINE";
+            
+            // เช็กสถานะแจ้งเตือน
+            const isAlertOn = item.alertEnabled === 1;
+            const alertBgClass = isAlertOn ? "" : "bg-light alert-disabled-overlay";
+            const alertLabelText = isAlertOn ? "<i class='fas fa-bell text-success'></i> แจ้งเตือน: เปิด" : "<i class='fas fa-bell-slash text-danger'></i> แจ้งเตือน: ปิด (ล้างตู้)";
 
             return `
             <div class="col-lg-6">
-                <div class="card card-fridge p-4 h-100 bg-white shadow-sm">
-                    <div class="d-flex justify-content-between mb-3 border-bottom pb-3">
-                        <div>
-                            <h5 class="fw-bold m-0 text-dark">${item.name}</h5>
-                            <small class="text-muted"><i class="fas fa-tag"></i> ID: ${item.dev}</small>
-                        </div>
-                        <div class="text-end">
-                            <div class="${isOnline ? 'status-online' : 'status-offline'} mb-1">
-                                <i class="fas ${isOnline ? 'fa-wifi' : 'fa-exclamation-triangle'}"></i> ${offlineText}
-                            </div>
-                            <small class="text-muted d-block" style="font-size:0.75rem">ล่าสุด: ${item.lastUpdate ? new Date(item.lastUpdate).toLocaleString('th-TH') : '-'}</small>
-                        </div>
-                    </div>
+                <div class="card card-fridge h-100 bg-white shadow-sm position-relative">
                     
-                    <div class="row text-center">
-                        <div class="col-6 border-end">
-                            <small class="text-success fw-bold d-block mb-1"><i class="fas fa-box"></i> ช่องธรรมดา</small>
-                            <div class="limit-info d-inline-block mb-1">เกณฑ์: ${item.nMin} ถึง ${item.nMax}°C</div>
-                            <div class="temp-val ${isTNErr ? 'text-danger-blink' : 'text-success'}">${item.curTN}°</div>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-info fw-bold d-block mb-1"><i class="fas fa-snowflake"></i> ช่องแช่แข็ง</small>
-                            <div class="limit-info d-inline-block mb-1">เกณฑ์: ${item.fMin} ถึง ${item.fMax}°C</div>
-                            <div class="temp-val ${isTFErr ? 'text-danger-blink' : 'text-info'}">${item.curTF}°</div>
+                    <div class="position-absolute top-0 end-0 p-3 z-3">
+                        <div class="form-check form-switch d-flex align-items-center justify-content-end bg-white p-2 rounded shadow-sm border" style="transform: scale(0.9); margin-top:-15px; margin-right:-10px;">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" id="switch-${item.dev}" 
+                                ${isAlertOn ? 'checked' : ''} 
+                                onchange="toggleAlert('${item.dev}', this.checked)">
+                            <label class="form-check-label text-dark" id="alert-label-${item.dev}" for="switch-${item.dev}">
+                                ${alertLabelText}
+                            </label>
                         </div>
                     </div>
-                    <canvas id="chart-${item.dev}"></canvas>
+
+                    <div class="p-4 ${alertBgClass}">
+                        <div class="d-flex justify-content-between mb-3 border-bottom pb-3 mt-2">
+                            <div>
+                                <h5 class="fw-bold m-0 text-dark">${item.name}</h5>
+                                <small class="text-muted"><i class="fas fa-tag"></i> ID: ${item.dev}</small>
+                            </div>
+                            <div class="text-start pe-4">
+                                <div class="${isOnline ? 'status-online' : 'status-offline'} mb-1">
+                                    <i class="fas ${isOnline ? 'fa-wifi' : 'fa-exclamation-triangle'}"></i> ${offlineText}
+                                </div>
+                                <small class="text-muted d-block" style="font-size:0.75rem">ล่าสุด: ${item.lastUpdate ? new Date(item.lastUpdate).toLocaleString('th-TH') : '-'}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row text-center">
+                            <div class="col-6 border-end">
+                                <small class="text-success fw-bold d-block mb-1"><i class="fas fa-box"></i> ช่องธรรมดา</small>
+                                <div class="limit-info d-inline-block mb-1">เกณฑ์: ${item.nMin} ถึง ${item.nMax}°C</div>
+                                <div class="temp-val ${isTNErr ? 'text-danger-blink' : 'text-success'}">${item.curTN}°</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-info fw-bold d-block mb-1"><i class="fas fa-snowflake"></i> ช่องแช่แข็ง</small>
+                                <div class="limit-info d-inline-block mb-1">เกณฑ์: ${item.fMin} ถึง ${item.fMax}°C</div>
+                                <div class="temp-val ${isTFErr ? 'text-danger-blink' : 'text-info'}">${item.curTF}°</div>
+                            </div>
+                        </div>
+                        <canvas id="chart-${item.dev}"></canvas>
+                    </div>
                 </div>
             </div>`;
         }).join('');
 
-        // วาดกราฟหลังจากสร้าง HTML เสร็จ
         data.forEach(item => {
             if (item.chartData && item.chartData.length > 0) {
                 const ctx = document.getElementById(`chart-${item.dev}`).getContext('2d');
-                if (chartInstances[item.dev]) chartInstances[item.dev].destroy(); // เคลียร์กราฟเก่าก่อน
-                
+                if (chartInstances[item.dev]) chartInstances[item.dev].destroy(); 
                 chartInstances[item.dev] = new Chart(ctx, {
                     type: 'line',
                     data: {

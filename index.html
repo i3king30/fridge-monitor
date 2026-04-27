@@ -171,25 +171,36 @@
             const tN = parseFloat(row[2]);
             const tF = parseFloat(row[3]);
             
-            // ดึงค่าเกณฑ์ของตู้นั้นๆ จากตัวแปร deviceSettings ที่เก็บไว้ตอนโหลด Dashboard
+            // ดึงค่าเกณฑ์ของตู้นั้นๆ
             const settings = deviceSettings[devId];
             
             let tNStatus = ""; let tNColor = "text-success";
             let tFStatus = ""; let tFColor = "text-info";
-            let overallStatus = `<span class="badge bg-success">ปกติ</span>`;
+            
+            // ตัวแปรเก็บสถานะผิดปกติ เพื่อป้องกันการเขียนทับกัน
+            let errors = [];
 
-            // ตรวจสอบเกณฑ์ ถ้าหา Settings ของตู้นี้เจอ
             if (settings) {
+                // เช็กช่องธรรมดา
                 if (tN < settings.nMin || tN > settings.nMax) {
                     tNStatus = ` <i class="fas fa-arrow-${tN > settings.nMax ? 'up' : 'down'} text-danger"></i>`;
                     tNColor = "text-danger fw-bold";
-                    overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (ธรรมดา)</span>`;
+                    errors.push("ธรรมดา"); // เพิ่มสถานะลงใน Array
                 }
+                
+                // เช็กช่องแช่แข็ง
                 if (tF < settings.fMin || tF > settings.fMax) {
                     tFStatus = ` <i class="fas fa-arrow-${tF > settings.fMax ? 'up' : 'down'} text-danger"></i>`;
                     tFColor = "text-danger fw-bold";
-                    overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (แช่แข็ง)</span>`;
+                    errors.push("แช่แข็ง"); // เพิ่มสถานะลงใน Array
                 }
+            }
+
+            // สร้างป้ายกำกับสถานะรวมตามข้อผิดพลาดที่เจอ
+            let overallStatus = `<span class="badge bg-success">ปกติ</span>`;
+            if (errors.length > 0) {
+                // ถ้ามีข้อผิดพลาด เอา Array มาต่อกันด้วย +
+                overallStatus = `<span class="badge bg-danger"><i class="fas fa-exclamation-circle"></i> ผิดปกติ (${errors.join(' + ')})</span>`;
             }
 
             return `
